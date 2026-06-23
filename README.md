@@ -17,8 +17,8 @@ Built from `momentmap.nb` (Hausel group).
 
 ## Acknowledgement
 
-Based on a note of **Miguel González** (ICMAT), *Note on torus actions on affine
-Grassmannians* — the GKM-graph conventions (vertices and one-dimensional orbits / edges)
+Based on a note of **[Miguel González](https://miguelgg.com/)** (ICMAT), *Note on torus
+actions on affine Grassmannians* — the GKM-graph conventions (vertices and one-dimensional orbits / edges)
 and the **edge-volume formula** that this viewer displays. Clicking an edge shows
 `k·B(β∨,β∨) = |d|²/k`, i.e. twice the symplectic ℙ¹ volume `(k/2)·B(β∨,β∨)` derived in
 that note (which in turn uses Godinho–von Heymann–Sabatini, *12, 24 and beyond*,
