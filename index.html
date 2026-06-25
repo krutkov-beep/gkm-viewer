@@ -30,6 +30,8 @@
   .tabs{ background:#ffffff; border-bottom-color:#d8dce3; }
   .tab{ color:#5a6472; }
   .tab:hover{ color:#15171c; background:#eef1f5; }
+  .tab-select{ -webkit-appearance:menulist; appearance:menulist; font-family:inherit; font-weight:600; font-size:14px; padding:8px 10px; margin:0 4px 0 0; color:#5a6472; }
+  .tab-select.active{ color:var(--accent); }
 </style>
 </head>
 <body>
@@ -39,24 +41,41 @@
   <p class="sub" style="margin-top:-4px;font-size:12px;">Based on <i>“Note on torus actions on affine Grassmannians”</i> by <b><a href="https://miguelgg.com/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Miguel González</a></b> (ICMAT) — GKM-graph conventions and the edge-volume formula.</p>
 </header>
 <nav class="tabs" role="tablist">
-  <button class="tab active" data-target="a2" role="tab" aria-selected="true">A2</button>
-  <button class="tab" data-target="b2" role="tab" aria-selected="false">B2</button>
+  <select class="tab tab-select" id="a2Select" aria-label="A2 graphs" title="A2 : SL3 and the two PGL3 components">
+    <option value="" hidden selected>A2</option>
+    <option value="a2">A2</option><option value="pc1">1</option><option value="pc2">2</option>
+  </select>
+  <select class="tab tab-select" id="b2Select" aria-label="B2 graphs" title="B2 : Sp(4) and the SO(5) component">
+    <option value="" hidden selected>B2</option>
+    <option value="b2">B2</option><option value="so5c1">1</option>
+  </select>
   <button class="tab" data-target="g2" role="tab" aria-selected="false">G2</button>
 </nav>
 <div class="stage">
-  <iframe id="a2" class="active" title="A2 GKM graph" src="a2.html"></iframe>
-  <iframe id="b2" title="B2 GKM graph" data-src="b2.html"></iframe>
-  <iframe id="g2" title="G2 GKM graph" data-src="g2.html"></iframe>
+  <iframe id="a2" class="active" title="Gr SL3 GKM graph" src="a2.html"></iframe>
+  <iframe id="b2" title="Gr Sp(4) GKM graph" data-src="b2.html"></iframe>
+  <iframe id="g2" title="Gr G2 GKM graph" data-src="g2.html"></iframe>
+  <iframe id="pc1" title="Gr PGL3 component 1" data-src="pgl3_c1.html"></iframe>
+  <iframe id="pc2" title="Gr PGL3 component 2" data-src="pgl3_c2.html"></iframe>
+  <iframe id="so5c1" title="Gr SO(5) component 1" data-src="so5_c1.html"></iframe>
 </div>
 <script>
-  const tabs = document.querySelectorAll('.tab');
-  const frames = { a2:a2, b2:b2, g2:g2 };
-  tabs.forEach(t => t.addEventListener('click', () => {
-    const id = t.dataset.target, f = frames[id];
-    if (f.dataset.src) { f.src = f.dataset.src; delete f.dataset.src; }   // lazy-load on first view
-    tabs.forEach(x => { const on = x === t; x.classList.toggle('active', on); x.setAttribute('aria-selected', on); });
-    Object.values(frames).forEach(fr => fr.classList.toggle('active', fr === f));
-  }));
+  const a2Select=document.getElementById('a2Select'), b2Select=document.getElementById('b2Select');
+  const frameIds=['a2','b2','g2','pc1','pc2','so5c1'];
+  const A2GRP=['a2','pc1','pc2'], B2GRP=['b2','so5c1'];
+  function setActive(tgt,on){const b=document.querySelector('.tab[data-target="'+tgt+'"]');b.classList.toggle('active',on);b.setAttribute('aria-selected',on);}
+  function showFrame(id){
+    const f=document.getElementById(id);
+    if(f.dataset.src){f.src=f.dataset.src;delete f.dataset.src;}
+    frameIds.forEach(x=>document.getElementById(x).classList.toggle('active',x===id));
+    a2Select.classList.toggle('active',A2GRP.includes(id));
+    b2Select.classList.toggle('active',B2GRP.includes(id));
+    setActive('g2',id==='g2');
+  }
+  a2Select.addEventListener('change',()=>{const v=a2Select.value;a2Select.selectedIndex=0;if(v)showFrame(v);});
+  b2Select.addEventListener('change',()=>{const v=b2Select.value;b2Select.selectedIndex=0;if(v)showFrame(v);});
+  document.querySelectorAll('.tab[data-target]').forEach(b=>b.addEventListener('click',()=>showFrame(b.dataset.target)));
+  showFrame('a2');
 </script>
 </body>
 </html>
