@@ -36,6 +36,7 @@
 <div id="panel">
   <label><input type="checkbox" id="spin"> auto-rotate</label>
   <label><input type="checkbox" id="surf"> paraboloid</label>
+  <label><input type="checkbox" id="springer"> Springer fibre</label>
 </div>
 <div id="hint">drag to orbit · scroll to zoom · right-drag to pan</div>
 <div id="vertexLabel"></div>
@@ -4645,9 +4646,63 @@ const surf=new THREE.Mesh(sg,new THREE.MeshStandardMaterial(
   {color:0xbfbfbf,transparent:true,opacity:0.16,side:THREE.DoubleSide,depthWrite:false}));
 scene.add(surf); surf.visible=false;
 
+// --- regular-nilpotent affine Springer fibre (Gonzalez notes, sec. 1.4) ---
+// fixed points = antidominant cocharacters; an edge lambda -> lambda+k*beta^v
+// (k<=0, beta a positive root) lies in the fibre iff  q_j*k - <alpha_j,lambda> >= 0
+// for every simple root alpha_j, where q_j is the beta-string length through alpha_j.
+// Lattice vectors are treated as coroots (so k is integer for genuine GKM edges);
+// roots used for the strings are their duals.
+const _spkey=v=>Math.round(v[0]*1e6)+','+Math.round(v[1]*1e6);
+const _sprefl=(v,r)=>{const k=2*rootMetricDot(v,r)/rootMetricDot(r,r);return [v[0]-k*r[0],v[1]-k*r[1]];};
+const SP_COROOTS=(()=>{const m=new Map();SIMPLE_ROOTS.forEach(r=>m.set(_spkey(r),r));let ch=1;
+  while(ch){ch=0;for(const r of [...m.values()])for(const s of SIMPLE_ROOTS){const w=_sprefl(r,s);
+    if(!m.has(_spkey(w))){m.set(_spkey(w),w);ch=1;}}}return [...m.values()];})();
+const _spdual=c=>{const n=rootMetricDot(c,c);return [2*c[0]/n,2*c[1]/n];};
+const SP_ROOTSET=new Set(SP_COROOTS.map(c=>_spkey(_spdual(c))));
+const _spIsRoot=v=>SP_ROOTSET.has(_spkey(v));
+const _sppair=(a,mu)=>2*rootMetricDot(a,mu)/rootMetricDot(a,a);   // <alpha, mu>
+function spIsAntidominant(rc){return SIMPLE_ROOTS.every(a=>_sppair(a,rc)<=1e-9);}
+const _spcoef=r=>{const a=SIMPLE_ROOTS[0],b=SIMPLE_ROOTS[1],det=a[0]*b[1]-a[1]*b[0];
+  return [(r[0]*b[1]-r[1]*b[0])/det,(a[0]*r[1]-a[1]*r[0])/det];};
+const SP_POSCO=SP_COROOTS.filter(r=>{const c=_spcoef(r);return c[0]+c[1]>1e-9||(Math.abs(c[0]+c[1])<1e-9&&c[0]>1e-9);});
+const SP_SRROOT=SIMPLE_ROOTS.map(_spdual);
+const _spqstr=(aj,beta)=>{let q=0;while(_spIsRoot([aj[0]+(q+1)*beta[0],aj[1]+(q+1)*beta[1]]))q++;return q;};
+function springerHasVertex(i){return spIsAntidominant(rootCoords(DATA.vertices[i].p));}
+function springerHasEdge(ia,ib){
+  const A=rootCoords(DATA.vertices[ia].p),B=rootCoords(DATA.vertices[ib].p),d=[B[0]-A[0],B[1]-A[1]];
+  for(const bv of SP_POSCO){
+    if(Math.abs(d[0]*bv[1]-d[1]*bv[0])>1e-6) continue;
+    let k=Math.abs(bv[0])>1e-9?d[0]/bv[0]:d[1]/bv[1];
+    if(Math.abs(k-Math.round(k))>1e-6) return false;
+    let lam=A,kk=k; if(k>0){lam=B;kk=-k;}
+    const beta=_spdual(bv);
+    return SIMPLE_ROOTS.every((a,j)=>_spqstr(SP_SRROOT[j],beta)*kk - _sppair(a,lam) >= -1e-9);
+  }
+  return false;
+}
+const SPRINGER_COLOR=0xa0522d;
+let springerGroup=null;
+function buildSpringer(){
+  if(springerGroup) return springerGroup;
+  springerGroup=new THREE.Group(); springerGroup.renderOrder=22;
+  const hpos=[];
+  DATA.vertices.forEach((v,i)=>{ if(springerHasVertex(i)){const q=M(v.p); hpos.push(q.x,q.y,q.z);} });
+  const hg=new THREE.BufferGeometry(); hg.setAttribute('position',new THREE.Float32BufferAttribute(hpos,3));
+  springerGroup.add(new THREE.Points(hg,new THREE.PointsMaterial(
+    {size:0.62,map:ringTex,alphaTest:0.12,transparent:true,color:SPRINGER_COLOR,depthTest:false,sizeAttenuation:true})));
+  const fedges=EDGE_INDEX.filter(e=>springerHasVertex(e.a)&&springerHasVertex(e.b)&&springerHasEdge(e.a,e.b));
+  if(fedges.length){
+    springerGroup.add(new THREE.Mesh(cellTubeGeometry(fedges),new THREE.MeshBasicMaterial(
+      {color:SPRINGER_COLOR,transparent:true,opacity:0.95,side:THREE.DoubleSide,depthTest:false,depthWrite:false})));
+  }
+  scene.add(springerGroup); springerGroup.visible=false;
+  return springerGroup;
+}
+
 // --- UI ---
 spin.onchange=e=>autoRotate=e.target.checked;
 document.getElementById('surf').onchange=e=>surf.visible=e.target.checked;
+document.getElementById('springer').onchange=e=>{buildSpringer().visible=e.target.checked;};
 
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);controls.handleResize();updateVertexLabel();updateEdgeLabel();});
