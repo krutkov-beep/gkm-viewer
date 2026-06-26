@@ -2673,15 +2673,43 @@ const ringTex=new THREE.CanvasTexture(ringCv);
 const cellHalo=new THREE.Points(new THREE.BufferGeometry(),new THREE.PointsMaterial(
   {size:0.50,map:ringTex,alphaTest:0.12,transparent:true,color:0x111111,depthTest:false,sizeAttenuation:true}));
 cellHalo.visible=false; cellHalo.renderOrder=30; scene.add(cellHalo);
-let cellEdgeMesh=null;
+let cellEdgeMesh=null, bothEdgeMesh=null; let springerVisible=false;
 const CELL_EDGE_R=0.009;
 function disposeCellEdge(){
   if(!cellEdgeMesh) return;
   scene.remove(cellEdgeMesh); cellEdgeMesh.geometry.dispose(); cellEdgeMesh.material.dispose(); cellEdgeMesh=null;
 }
+function disposeBothEdge(){
+  if(!bothEdgeMesh) return;
+  scene.remove(bothEdgeMesh); bothEdgeMesh.geometry.dispose(); bothEdgeMesh.material.dispose(); bothEdgeMesh=null;
+}
+function isSpringerEdge(e){return springerHasVertex(e.a)&&springerHasVertex(e.b)&&springerHasEdge(e.a,e.b);}
+const BOTH_EDGE_R = CELL_EDGE_R*2.4;   // thicker than the plain cell/Springer tubes
+function bothTubeGeometry(edges,flowHex){   // thick tube striped Springer-magenta <-> flow colour
+  const pos=[],nor=[],col=[],idx=[], axis=new THREE.Vector3(), u=new THREE.Vector3(), v=new THREE.Vector3(), P=new THREE.Vector3();
+  const cA=new THREE.Color(SPRINGER_COLOR), cB=new THREE.Color(flowHex), NL=12;
+  for(const e of edges){
+    const A=M(DATA.vertices[e.a].p), B=M(DATA.vertices[e.b].p);
+    axis.subVectors(B,A); if(axis.lengthSq()<1e-12) continue; axis.normalize();
+    u.crossVectors(axis,Math.abs(axis.y)<0.99?_up:_alt).normalize(); v.crossVectors(axis,u).normalize();
+    const ring=[];
+    for(let s=0;s<=NL;s++){
+      P.lerpVectors(A,B,s/NL); const c=(s%2===0)?cA:cB; ring.push(pos.length/3);
+      for(let k=0;k<SEG;k++){const ang=2*Math.PI*k/SEG, ca=Math.cos(ang), sa=Math.sin(ang);
+        const nx=u.x*ca+v.x*sa, ny=u.y*ca+v.y*sa, nz=u.z*ca+v.z*sa;
+        pos.push(P.x+BOTH_EDGE_R*nx,P.y+BOTH_EDGE_R*ny,P.z+BOTH_EDGE_R*nz); nor.push(nx,ny,nz); col.push(c.r,c.g,c.b);}
+    }
+    for(let s=0;s<NL;s++){const a=ring[s],b=ring[s+1]; for(let k=0;k<SEG;k++){const k2=(k+1)%SEG; idx.push(a+k,b+k,b+k2, a+k,b+k2,a+k2);}}
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('normal',new THREE.Float32BufferAttribute(nor,3));
+  g.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); g.setIndex(idx);
+  return g;
+}
 function clearBruhatCell(){
   cellHalo.visible=false; cellHalo.geometry.dispose(); cellHalo.geometry=new THREE.BufferGeometry();
-  disposeCellEdge();
+  disposeCellEdge(); disposeBothEdge();
 }
 function showSelectedHalo(i){
   const q=M(DATA.vertices[i].p);
@@ -2730,12 +2758,20 @@ function renderCell(cell,col){
   cellHalo.geometry.dispose(); cellHalo.geometry=new THREE.BufferGeometry();
   cellHalo.geometry.setAttribute('position',new THREE.Float32BufferAttribute(hpos,3));
   cellHalo.material.color.setHex(col); cellHalo.visible=true;
-  disposeCellEdge();
+  disposeCellEdge(); disposeBothEdge();
   const internal=EDGE_INDEX.filter(e=>cell.has(e.a)&&cell.has(e.b));
   if(internal.length){
     cellEdgeMesh=new THREE.Mesh(cellTubeGeometry(internal),new THREE.MeshBasicMaterial(
       {color:col,transparent:true,opacity:0.9,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
     cellEdgeMesh.renderOrder=25; scene.add(cellEdgeMesh);
+    if(springerVisible){
+      const both=internal.filter(isSpringerEdge);
+      if(both.length){
+        bothEdgeMesh=new THREE.Mesh(bothTubeGeometry(both,col),new THREE.MeshBasicMaterial(
+          {vertexColors:true,transparent:true,side:THREE.DoubleSide,depthTest:false,depthWrite:false}));
+        bothEdgeMesh.renderOrder=30; scene.add(bothEdgeMesh);
+      }
+    }
   }
 }
 function showFlowUpCell(i){ renderCell(flowUpCell(i), FLOW_UP_COLOR); }
@@ -2883,7 +2919,7 @@ function buildSpringer(){
 // --- UI ---
 spin.onchange=e=>autoRotate=e.target.checked;
 document.getElementById('surf').onchange=e=>surf.visible=e.target.checked;
-document.getElementById('springer').onchange=e=>{buildSpringer().visible=e.target.checked;};
+document.getElementById('springer').onchange=e=>{springerVisible=e.target.checked; buildSpringer().visible=e.target.checked; if(selectedVertex!==null&&flowMode===1) showFlowUpCell(selectedVertex); else if(selectedVertex!==null&&flowMode===2) showFlowDownCell(selectedVertex);};
 
 addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);controls.handleResize();updateVertexLabel();updateEdgeLabel();});
