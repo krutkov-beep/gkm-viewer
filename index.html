@@ -11,11 +11,11 @@
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; }
   body { display:flex; flex-direction:column; }
   header { padding:14px 18px 0; }
-  h1 { margin:0 0 2px; font-size:20px; font-weight:600; }
-  p.sub { margin:0 0 10px; color:var(--muted); font-size:13px; }
+  h1 { margin:0 0 2px; font-size:clamp(20px, 1.5vw, 44px); font-weight:600; }
+  p.sub { margin:0 0 10px; color:var(--muted); font-size:clamp(13px, 1vw, 26px); }
   .tabs { display:flex; gap:6px; border-bottom:1px solid #2a2f3a; padding:0 6px; }
   .tab { appearance:none; border:0; background:transparent; color:var(--muted);
-    padding:10px 18px; font-size:14px; font-weight:600; cursor:pointer;
+    padding:10px 18px; font-size:clamp(14px, 1.1vw, 28px); font-weight:600; cursor:pointer;
     border-bottom:2px solid transparent; border-radius:6px 6px 0 0; }
   .tab:hover { color:var(--ink); background:var(--panel); }
   .tab.active { color:var(--accent); border-bottom-color:var(--accent); }
@@ -30,17 +30,21 @@
   .tabs{ background:#ffffff; border-bottom-color:#d8dce3; }
   .tab{ color:#5a6472; }
   .tab:hover{ color:#15171c; background:#eef1f5; }
-  .tab-select{ -webkit-appearance:menulist; appearance:menulist; font-family:inherit; font-weight:600; font-size:14px; padding:8px 10px; margin:0 4px 0 0; color:#5a6472; }
+  .tab-select{ -webkit-appearance:menulist; appearance:menulist; font-family:inherit; font-weight:600; font-size:clamp(14px, 1.1vw, 28px); padding:8px 10px; margin:0 4px 0 0; color:#5a6472; }
   .tab-select.active{ color:var(--accent); }
 </style>
 </head>
 <body>
 <header>
   <h1>GKM Viewer</h1>
-  <p class="sub">Interactive GKM graphs for the rank-2 root systems. Drag to rotate · scroll to zoom · right-drag to pan.</p>
-  <p class="sub" style="margin-top:-4px;font-size:12px;">Based on <i>“Note on torus actions on affine Grassmannians”</i> by <b><a href="https://miguelgg.com/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Miguel González</a></b> (ICMAT) — GKM-graph conventions and the edge-volume formula.</p>
+  <p class="sub">Interactive GKM graphs for the rank-1 and rank-2 root systems. Drag to rotate · scroll to zoom · right-drag to pan.</p>
+  <p class="sub" style="margin-top:-4px;font-size:clamp(12px, 0.95vw, 22px);">Based on <i>“Note on torus actions on affine Grassmannians”</i> by <b><a href="https://miguelgg.com/" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;">Miguel González</a></b> — GKM-graph conventions and the edge-volume formula.</p>
 </header>
 <nav class="tabs" role="tablist">
+  <select class="tab tab-select" id="a1Select" aria-label="A1 graphs" title="A1 : SL2 and the PGL2 component">
+    <option value="" hidden selected>A1</option>
+    <option value="a1sl2">A1</option><option value="a1pc1">1</option>
+  </select>
   <select class="tab tab-select" id="a2Select" aria-label="A2 graphs" title="A2 : SL3 and the two PGL3 components">
     <option value="" hidden selected>A2</option>
     <option value="a2">A2</option><option value="pc1">1</option><option value="pc2">2</option>
@@ -52,6 +56,8 @@
   <button class="tab" data-target="g2" role="tab" aria-selected="false">G2</button>
 </nav>
 <div class="stage">
+  <iframe id="a1sl2" title="Gr SL2 GKM graph" data-src="a1_sl2.html"></iframe>
+  <iframe id="a1pc1" title="Gr PGL2 component 1" data-src="a1_pgl2_c1.html"></iframe>
   <iframe id="a2" class="active" title="Gr SL3 GKM graph" src="a2.html"></iframe>
   <iframe id="b2" title="Gr Sp(4) GKM graph" data-src="b2.html"></iframe>
   <iframe id="g2" title="Gr G2 GKM graph" data-src="g2.html"></iframe>
@@ -60,18 +66,36 @@
   <iframe id="so5c1" title="Gr SO(5) component 1" data-src="so5_c1.html"></iframe>
 </div>
 <script>
-  const a2Select=document.getElementById('a2Select'), b2Select=document.getElementById('b2Select');
-  const frameIds=['a2','b2','g2','pc1','pc2','so5c1'];
-  const A2GRP=['a2','pc1','pc2'], B2GRP=['b2','so5c1'];
+  const a1Select=document.getElementById('a1Select'), a2Select=document.getElementById('a2Select'), b2Select=document.getElementById('b2Select');
+  const frameIds=['a1sl2','a1pc1','a2','b2','g2','pc1','pc2','so5c1'];
+  const A1GRP=['a1sl2','a1pc1'], A2GRP=['a2','pc1','pc2'], B2GRP=['b2','so5c1'];
   function setActive(tgt,on){const b=document.querySelector('.tab[data-target="'+tgt+'"]');b.classList.toggle('active',on);b.setAttribute('aria-selected',on);}
   function showFrame(id){
     const f=document.getElementById(id);
     if(f.dataset.src){f.src=f.dataset.src;delete f.dataset.src;}
     frameIds.forEach(x=>document.getElementById(x).classList.toggle('active',x===id));
+    a1Select.classList.toggle('active',A1GRP.includes(id));
     a2Select.classList.toggle('active',A2GRP.includes(id));
     b2Select.classList.toggle('active',B2GRP.includes(id));
     setActive('g2',id==='g2');
+    _activeId=id;
   }
+  // --- minimap click routing: a weight clicked in one viewer selects the matching
+  //     vertex in the correct component, switching the active iframe if needed ---
+  let _activeId='a2';
+  const COSET_ID={0:'a2',2:'pc1',1:'pc2'};   // A2 minimap (legacy: by coset)
+  const FILE_ID={'a1_sl2.html':'a1sl2','a1_pgl2_c1.html':'a1pc1','a2.html':'a2','pgl3_c1.html':'pc1','pgl3_c2.html':'pc2','b2.html':'b2','so5_c1.html':'so5c1','g2.html':'g2'};
+  const _ready=new Set(), _pend={};
+  function _frameIdOf(src){for(const id of frameIds){const f=document.getElementById(id);if(f.contentWindow===src)return id;}return null;}
+  function _sendSel(id){const f=document.getElementById(id);if(_pend[id]&&f&&f.contentWindow){f.contentWindow.postMessage({type:'gkm-select',a:_pend[id].a,b:_pend[id].b},'*');delete _pend[id];}}
+  window.addEventListener('message',ev=>{
+    const d=ev.data; if(!d) return;
+    if(d.type==='gkm-ready'){ const id=_frameIdOf(ev.source)||_activeId; _ready.add(id); _sendSel(id); }
+    else if(d.type==='gkm-nav'){ const id = d.file ? FILE_ID[d.file] : COSET_ID[d.coset]; if(!id) return;
+      _pend[id]={a:d.a,b:d.b}; showFrame(id);
+      if(_ready.has(id)) _sendSel(id); }   // else flushed when the frame posts gkm-ready
+  });
+  a1Select.addEventListener('change',()=>{const v=a1Select.value;a1Select.selectedIndex=0;if(v)showFrame(v);});
   a2Select.addEventListener('change',()=>{const v=a2Select.value;a2Select.selectedIndex=0;if(v)showFrame(v);});
   b2Select.addEventListener('change',()=>{const v=b2Select.value;b2Select.selectedIndex=0;if(v)showFrame(v);});
   document.querySelectorAll('.tab[data-target]').forEach(b=>b.addEventListener('click',()=>showFrame(b.dataset.target)));
